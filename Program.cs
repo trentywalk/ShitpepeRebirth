@@ -36,8 +36,6 @@ namespace ShitpepeRebirth
 
         public static async Task Client_Ready()
         {
-            //ulong guildId = 828224191517556747;
-
             var userInfoCommand = new SlashCommandBuilder()
                 .WithName("user-info")
                 .WithDescription("Команда, выводящая информацию о пользователе")
@@ -74,12 +72,10 @@ namespace ShitpepeRebirth
 
             try
             {
-
                 foreach (var item in commandList)
                 {
                     await _client.CreateGlobalApplicationCommandAsync(item.Build());
                 }
-                
             }
             catch (HttpException ex)
             {
@@ -138,7 +134,7 @@ namespace ShitpepeRebirth
                 .WithDescription(
                 $@"
                 > - ID: {user?.Id}
-                > - Глобальное имя: {user?.GlobalName}
+                > - Глобальное имя: {user?.Username}
                 > - Дата создания аккаунта: {user?.CreatedAt}
                 > - Имя на сервере: {user?.DisplayName}
                 > - Является ли аккаунт ботом: {user?.IsBot}
@@ -151,7 +147,6 @@ namespace ShitpepeRebirth
         private static async Task HandleServerInfoCommand(SocketSlashCommand command)
         {
             var curServer = command.GetChannelAsync().Result;
-            Console.WriteLine(curServer);
             var embedBuilder = new EmbedBuilder()
                 .WithAuthor(command.User.ToString(), command.User.GetAvatarUrl())
                 .WithTitle("Информация о канале")
@@ -178,21 +173,42 @@ namespace ShitpepeRebirth
 
         private static async Task HandleCheckBotStatsCommand(SocketSlashCommand command)
         {
-            //not today
+            using (DBContext dbc = new())
+            {
+                var user = dbc.DiscordUsers.Where(x => x.Id == command.User.Id).FirstOrDefault();
+                if (user != null)
+                {
+                    var embedBuilder = new EmbedBuilder()
+                        .WithAuthor(command.User.ToString(), command.User.GetAvatarUrl())
+                        .WithTitle("Ваша статистика внутри бота")
+                        .WithDescription($@"
+                        > - {user.Id}
+                        > - {user.Username}
+                        > - {user.UserBotRole}
+                        > - {user.UserLevel}
+                        > - {user.UserExpAmount}
+                        ")
+                        .WithColor(Color.DarkOrange)
+                        .WithCurrentTimestamp();
+                    await command.RespondAsync(embed: embedBuilder.Build());
+                }
+                else
+                    await command.RespondAsync("Вы не написали ни одного сообщения на серверах, где есть бот");
+            }
         }
 
         private static async Task MessageHandler(SocketMessage msgParam)
         {
             var message = msgParam as SocketUserMessage;
-            if (message == null) return;
+            if (message == null || message.Author.IsBot) return;
             var messageAuthor = message.Author;
             using (DBContext dbc = new())
             {
                 var user = dbc.DiscordUsers.Where(x => x.Id == messageAuthor.Id).FirstOrDefault();
                 if (user != null)
                 {
-                    Console.WriteLine($"Пользователь {user.Username} получил {message.Content.Count()} к опыту");
-                    user.UserExpAmount += (ulong)message.Content.Count();
+                    Console.WriteLine($"Пользователь {user.Username} получил +1 к опыту");
+                    user.UserExpAmount += 1;
                 }
                 else
                 {
